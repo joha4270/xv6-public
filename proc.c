@@ -322,10 +322,12 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p, *oldproc;
   struct cpu *c = mycpu();
+
+  oldproc = 0;
   c->proc = 0;
-  
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -340,6 +342,13 @@ scheduler(void)
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = p;
+
+      if(oldproc)
+        cprintf(
+          "Switching from %s(%d) to %s(%d)\n",
+          oldproc->name, oldproc->pid,
+          p->name, p->pid);
+
       switchuvm(p);
       p->state = RUNNING;
 
@@ -348,6 +357,7 @@ scheduler(void)
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
+      oldproc = c->proc;
       c->proc = 0;
     }
     release(&ptable.lock);
