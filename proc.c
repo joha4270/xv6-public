@@ -325,7 +325,9 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
+  signed char working_priority = 0;
+  _Bool found = 0;
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -333,8 +335,12 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      if(p->state != RUNNABLE || p->priority < working_priority)
         continue;
+
+      found = 1;
+      //Priority is at least as great as working, so we do not need to check max
+      working_priority = p->priority;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -350,6 +356,10 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+
+    if(!found && working_priority != -128)
+      working_priority--;
+
     release(&ptable.lock);
 
   }
@@ -531,4 +541,13 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+
+void
+set_priority(int pid, signed char priority)
+{
+  acquire(&ptable.lock);
+  ptable.proc[pid].priority = priority;
+  release(&ptable.lock);
 }

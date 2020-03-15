@@ -32,6 +32,8 @@ struct context {
   uint eip;
 };
 
+enum priority { LOW, NORMAL, HIGH, END_OF_PRIORITY };
+
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -49,6 +51,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  signed char priority;        // Process priority
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -56,3 +59,7 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+
+void
+set_priority(int pid, signed char priority);
