@@ -449,25 +449,3 @@ sys_pid(void)
   return myproc()->pid;
 }
 
-int
-sys_priority(void)
-{
-  int pid;
-  int newpriority;
-
-  if(argint(0, &pid) < 0)
-    return -1;
-
-  if(pid < 0 || pid > NPROC)
-    return -2;
-
-  if(argint(0, &newpriority) < 0)
-    return -1;
-
-  if(newpriority > 127 || newpriority < -128)
-    return -2;
-
-  set_priority(pid, newpriority);
-
-  return 0;
-}

@@ -181,7 +181,8 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
-	_noterminate
+	_noterminate\
+	_prioterminate
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

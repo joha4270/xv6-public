@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = 128;
 
   release(&ptable.lock);
 
@@ -328,17 +329,23 @@ scheduler(void)
   oldproc = 0;
   c->proc = 0;
 
-  signed char working_priority = 0;
-  _Bool found = 0;
+  unsigned char working_priority = 128;
   for(;;){
+    _Bool found = 0;
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE || p->priority < working_priority)
+      if(p->state != RUNNABLE)
         continue;
+
+      if(p->priority < working_priority)
+      {
+        cprintf("skipping due priority %d\n", working_priority);
+        continue;
+      }
 
       found = 1;
       //Priority is at least as great as working, so we do not need to check max
@@ -367,7 +374,7 @@ scheduler(void)
       c->proc = 0;
     }
 
-    if(!found && working_priority != -128)
+    if(!found && working_priority)
       working_priority--;
 
     release(&ptable.lock);
@@ -554,10 +561,21 @@ procdump(void)
 }
 
 
-void
-set_priority(int pid, signed char priority)
+int
+set_priority(int pid, unsigned char priority)
 {
+
+  int ret = -1;
+  struct proc *p;
   acquire(&ptable.lock);
-  ptable.proc[pid].priority = priority;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid)
+    {
+      p->priority = priority;
+      ret = 0;
+      break;
+    }
+  }
   release(&ptable.lock);
+  return ret;
 }
