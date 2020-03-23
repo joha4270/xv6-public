@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "random.h"
 
 struct {
   struct spinlock lock;
@@ -88,7 +89,8 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->priority = 128;
+  //Value chosen by random, not some special insight
+  p->tickets = 128;
 
   release(&ptable.lock);
 
@@ -185,11 +187,13 @@ fork(void)
   struct proc *np;
   struct proc *curproc = myproc();
 
+  cprintf("fork: allocating\n");
   // Allocate process.
   if((np = allocproc()) == 0){
+    cprintf("failed\n");
     return -1;
   }
-
+  cprintf("allocated new process with %d tickets\n", np->tickets);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
@@ -324,59 +328,72 @@ void
 scheduler(void)
 {
   struct proc *p, *oldproc;
+  struct random random;
   struct cpu *c = mycpu();
-
   oldproc = 0;
+  //BUG: overflow possible on total tickets. This would exclude later processes from being run, but overflow is defined on unsigned so its not UB
+  //Could easily be solved by either limiting amount of tickets in sys_tickets
+  //or by using a unsigned long for total tickets
+  uint total_tickets = 0, lottery_winner;
   c->proc = 0;
 
-  unsigned char working_priority = 128;
+  random_init(&random);
+
   for(;;){
-    _Bool found = 0;
+  outer: total_tickets = 0;
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
+    // Loop over process table, counting up tickets.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
-      if(p->priority < working_priority)
-      {
-        cprintf("skipping due priority %d\n", working_priority);
-        continue;
-      }
-
-      found = 1;
-      //Priority is at least as great as working, so we do not need to check max
-      working_priority = p->priority;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-
-      if(oldproc)
-        cprintf(
-          "Switching from %s(%d) to %s(%d)\n",
-          oldproc->name, oldproc->pid,
-          p->name, p->pid);
-
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      oldproc = c->proc;
-      c->proc = 0;
+      cprintf("proc[%x].tickets = %d\n", p, p->tickets);
+      total_tickets += p->tickets;
     }
 
-    if(!found && working_priority)
-      working_priority--;
+    if(!total_tickets)
+    {
+      release(&ptable.lock);
+      goto outer;
+    }
 
+
+    lottery_winner = random_uint(&random);
+    lottery_winner = lottery_winner % total_tickets;
+    cprintf("A total of %d tickets in the system, winner %d\n", total_tickets, lottery_winner);
+
+    for(p = ptable.proc; lottery_winner > p->tickets; p++)
+    {
+      if(p->state != RUNNABLE)
+        continue;
+      cprintf("proc[%x].tickets = %d > %d\n", ptable.proc, p->tickets, lottery_winner);
+      lottery_winner -= p->tickets;
+    }
+    //cprintf("proc[%x]\n", ptable.proc);
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    c->proc = p;
+
+    if(oldproc)
+      cprintf(
+        "Switching from %s(%d) to %s(%d)\n",
+        oldproc->name, oldproc->pid,
+        p->name, p->pid);
+
+    switchuvm(p);
+    p->state = RUNNING;
+
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    oldproc = c->proc;
+    c->proc = 0;
     release(&ptable.lock);
 
   }
@@ -562,7 +579,7 @@ procdump(void)
 
 
 int
-set_priority(int pid, unsigned char priority)
+set_tickets(int pid, uint tickets)
 {
 
   int ret = -1;
@@ -571,7 +588,7 @@ set_priority(int pid, unsigned char priority)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid)
     {
-      p->priority = priority;
+      p->tickets = tickets;
       ret = 0;
       break;
     }

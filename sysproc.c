@@ -91,22 +91,25 @@ sys_uptime(void)
 }
 
 int
-sys_priority(void)
+sys_tickets(void)
 {
   int pid;
-  int newpriority;
+  int inewtickets;
+  unsigned int newtickets;
+
 
   if(argint(0, &pid) < 0)
     return -1;
 
-  if(argint(1, &newpriority) < 0)
+  if(argint(1, &inewtickets) < 0)
     return -1;
 
-  if(newpriority > 255 || newpriority < 0)
-    return -2;
 
-  cprintf("Setting priority of pid %d to %d\n", pid, newpriority);
-  return set_priority(pid, newpriority);
+  //re-interpret int as uint
+  newtickets = *(uint*)&inewtickets;
+
+  cprintf("Setting priority of pid %d to %d\n", pid, newtickets);
+  return set_tickets(pid, newtickets);
 }
 
 

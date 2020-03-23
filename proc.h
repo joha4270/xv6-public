@@ -51,7 +51,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  unsigned char priority;      // Process priority
+  unsigned int tickets;        // № tickets
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -62,4 +62,4 @@ struct proc {
 
 
 int
-set_priority(int pid, unsigned char priority);
+set_tickets(int pid, unsigned int tickets);
