@@ -329,6 +329,8 @@ scheduler(void)
   oldproc = 0;
   c->proc = 0;
 
+  //Slightly unconventional implementation of fixed priority, where instead of having distinct queues, processes with too low a priority simply gets skipped
+  //If nothing with sufficient priority was runable, minimum priority gets lowered
   unsigned char working_priority = 128;
   for(;;){
     _Bool found = 0;
